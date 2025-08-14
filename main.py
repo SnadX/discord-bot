@@ -18,6 +18,7 @@ handler = logging.FileHandler(filename='log.txt', encoding='utf-8', mode='w')
 intents = discord.Intents.default()
 intents.message_content = True
 intents.members = True
+intents.reactions = True
 
 bot = commands.Bot(command_prefix='?', intents=intents)
 
@@ -31,6 +32,44 @@ async def on_message(message):
         return
     # TODO Implement some kind of automod
     await bot.process_commands(message)
+
+# Role reacts
+# Can additionally check payload.message_id or payload.channel_id to ensure it only works in a specific message/channel
+@bot.event
+async def on_raw_reaction_add(payload):
+    guild = bot.get_guild(payload.guild_id)
+    user = discord.utils.get(guild.members, id=payload.user_id)
+    if user.bot: return
+    match str(payload.emoji):
+        case "1️⃣":
+            role =  discord.utils.get(guild.roles, name="Test Role 1")
+        case "2️⃣":
+            role =  discord.utils.get(guild.roles, name="Test Role 2")
+        case "3️⃣":
+            role =  discord.utils.get(guild.roles, name="Test Role 3")
+        case _:
+            return
+
+    await user.add_roles(role)
+    print(f"Added role '{role.name}' to user '{user.name}'")
+
+@bot.event
+async def on_raw_reaction_remove(payload):
+    guild = bot.get_guild(payload.guild_id)
+    user = discord.utils.get(guild.members, id=payload.user_id)
+    if user.bot: return
+    match str(payload.emoji):
+        case "1️⃣":
+            role =  discord.utils.get(guild.roles, name="Test Role 1")
+        case "2️⃣":
+            role =  discord.utils.get(guild.roles, name="Test Role 2")
+        case "3️⃣":
+            role =  discord.utils.get(guild.roles, name="Test Role 3")
+        case _:
+            return
+
+    await user.remove_roles(role)
+    print(f"Removed role '{role.name}' from user '{user.name}'")
 
 # bot.remove_command('help')
 '''
@@ -56,14 +95,15 @@ async def clear(ctx, num: int=10):
     except:
         await ctx.send("Usage: ?clear <number of messages to delete>")
 
-# Rolls NdN dice
+# Creates an embed that assigns users roles when they react
 @bot.command()
-async def roll(ctx, dice: str):
-    try:
-        rolls, sides = map(int, dice.lower().split('d'))
-        await ctx.send(f"You rolled: {' '.join([str(random.randint(1, sides)) for i in range(rolls)])}")
-    except:
-        await ctx.send("Usage: ?roll NdN")
+async def roleassigner(ctx):
+    embed = discord.Embed(title="React to assign roles")
+    embed.description = ("1️⃣ Test Role 1\n 2️⃣ Test Role 2\n 3️⃣ Test Role 3")
+    msg = await ctx.send(embed=embed)
+    await msg.add_reaction("1️⃣")
+    await msg.add_reaction("2️⃣")
+    await msg.add_reaction("3️⃣")
 
 # Sends the user a reminder
 @bot.command()
@@ -84,6 +124,14 @@ async def remindme(ctx, num: int, time: str, *, msg: str=""):
     except:
         await ctx.send('Usage: ?remindme <number> <minute(s)|hour(s)|day(s)> <[optional] message>')
 
+# Rolls NdN dice
+@bot.command()
+async def roll(ctx, dice: str):
+    try:
+        rolls, sides = map(int, dice.lower().split('d'))
+        await ctx.send(f"You rolled: {' '.join([str(random.randint(1, sides)) for i in range(rolls)])}")
+    except:
+        await ctx.send("Usage: ?roll NdN")
 
 # Cool fact
 @bot.command()
