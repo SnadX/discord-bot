@@ -40,6 +40,7 @@ async def on_raw_reaction_add(payload):
     guild = bot.get_guild(payload.guild_id)
     user = discord.utils.get(guild.members, id=payload.user_id)
     if user.bot: return
+    # if payload.message_id != <Message ID here>: return
     match str(payload.emoji):
         case "1️⃣":
             role =  discord.utils.get(guild.roles, name="Test Role 1")
@@ -58,6 +59,7 @@ async def on_raw_reaction_remove(payload):
     guild = bot.get_guild(payload.guild_id)
     user = discord.utils.get(guild.members, id=payload.user_id)
     if user.bot: return
+    # if payload.message_id != <Message ID here>: return
     match str(payload.emoji):
         case "1️⃣":
             role =  discord.utils.get(guild.roles, name="Test Role 1")
