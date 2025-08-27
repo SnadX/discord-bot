@@ -1,5 +1,6 @@
 # main.py
 # imports
+import asyncio
 import datetime
 import discord
 from discord.ext import commands
@@ -8,6 +9,7 @@ import logging
 import os
 import random
 import requests
+from yt_dlp import YoutubeDL
 
 # env, logging and intents setup
 load_dotenv()
@@ -22,6 +24,45 @@ intents.reactions = True
 
 bot = commands.Bot(command_prefix='?', intents=intents)
 
+# Options for yt-dlp downloader
+ydl_opts = {
+    'format': 'm4a/bestaudio/best',
+    'outtmpl': '%(extractor)s-%(id)s-%(title)s.%(ext)s',
+    'restrictfilenames': True,
+    'noplaylist': True,
+    'nocheckcertificate': True,
+    'ignoreerrors': False,
+    'logtostderr': False,
+    'quiet': True,
+    'no_warnings': True,
+    'source_address': '0.0.0.0',
+    'postprocessors':
+    [{
+        'key': 'FFmpegExtractAudio',
+        'preferredcodec': 'm4a',
+    }]
+}
+
+# Options for ffmpeg
+ffmpeg_options = {
+    'options': '-vn',
+}
+
+ydl = YoutubeDL(ydl_opts)
+
+# Searches for song
+async def search_yt(query):
+    loop = asyncio.get_event_loop()
+    data = await loop.run_in_executor(None, lambda: ydl.extract_info(query, download=False))
+
+    # Takes first item from playlist
+    if "entries" in data:
+        data = data["entries"][0]
+
+    url = data["url"]
+    return discord.FFmpegOpusAudio(url, **ffmpeg_options)
+
+# Event Listeners
 @bot.event
 async def on_ready():
     print(f"{bot.user.name} has logged in")
@@ -34,6 +75,7 @@ async def on_message(message):
     await bot.process_commands(message)
 
 # Role reacts
+# Adds a role to the user depending on the reaction to the message
 # Can additionally check payload.message_id or payload.channel_id to ensure it only works in a specific message/channel
 @bot.event
 async def on_raw_reaction_add(payload):
@@ -54,6 +96,7 @@ async def on_raw_reaction_add(payload):
     await user.add_roles(role)
     print(f"Added role '{role.name}' to user '{user.name}'")
 
+# Removes a role from the user depending on the reaction to the message
 @bot.event
 async def on_raw_reaction_remove(payload):
     guild = bot.get_guild(payload.guild_id)
@@ -73,6 +116,7 @@ async def on_raw_reaction_remove(payload):
     await user.remove_roles(role)
     print(f"Removed role '{role.name}' from user '{user.name}'")
 
+# Commands
 # bot.remove_command('help')
 '''
 @bot.command()
@@ -95,7 +139,7 @@ async def clear(ctx, num: int=10):
         deleted =  await ctx.message.channel.purge(limit=num)
         await ctx.send(f"Deleted {len(deleted)} message(s)")
     except:
-        await ctx.send("Usage: ?clear <number of messages to delete>")
+        await ctx.reply("Usage: ?clear <number of messages to delete>")
 
 # Creates an embed that assigns users roles when they react
 @bot.command()
@@ -133,7 +177,7 @@ async def roll(ctx, dice: str):
         rolls, sides = map(int, dice.lower().split('d'))
         await ctx.send(f"You rolled: {' '.join([str(random.randint(1, sides)) for i in range(rolls)])}")
     except:
-        await ctx.send("Usage: ?roll NdN")
+        await ctx.reply("Usage: ?roll NdN")
 
 # Cool fact
 @bot.command()
@@ -145,32 +189,63 @@ async def fact(ctx, arg: str=""):
         case "random":
             choice = "random"
         case _:
-            await ctx.send("Usage: ?fact or ?fact random")
+            await ctx.reply("Usage: ?fact or ?fact random")
             return
     
     r = requests.get(f"https://uselessfacts.jsph.pl/api/v2/facts/{choice}")
     await ctx.send(r.json()['text'])
 
 # Music Commands
+# Connect to voice channel and play music
 @bot.command()
 async def play(ctx, *, args):
+    # Check if the user is in a voice channel
+    if ctx.message.author.voice is None:
+        await ctx.reply("You must be in a voice channel to do this")
+        return        
+    
+    vc = ctx.message.author.voice.channel
+
+    # Join the voice channel
+    if ctx.voice_client:
+        await ctx.voice_client.move_to(vc)
+    else: 
+        await vc.connect()
+
+    # Search and play audio
+    query = "ytsearch1:" + args
+    source = await search_yt(query)
+    ctx.voice_client.play(source)
+
+    song_name = "Test"
+    await ctx.send(f"Now playing: {song_name}")
+
+# Pauses audio
+@bot.command()
+async def pause(ctx):
+    ctx.voice_client.pause()
+
+# Unpauses audio
+@bot.command()
+async def unpause(ctx):
+    ctx.voice_client.resume()
+
+# Skips current track
+@bot.command()
+async def skip(ctx):
+    ctx.voice_client.stop()
+
+# Displays music queue
+@bot.command()
+async def queue(ctx):
     # TODO Implement
     return
 
+# Leaves the voice channel
 @bot.command()
-async def pause(ctx, *, args):
-    # TODO Implement
-    return
-
-@bot.command()
-async def skip(ctx, *, args):
-    # TODO Implement
-    return
-
-@bot.command()
-async def queue(ctx, *, args):
-    # TODO Implement
-    return
+async def leave(ctx):
+    ctx.voice_client.stop()
+    await ctx.voice_client.disconnect()
 
 # Runs the bot
 bot.run(token, log_handler=handler, log_level=logging.DEBUG)

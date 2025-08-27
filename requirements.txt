@@ -1,3 +1,5 @@
 discord.py
+pynacl
 python-dotenv
 requests
+yt-dlp
