@@ -1,6 +1,7 @@
 # main.py
 # imports
 import asyncio
+from collections import deque
 import datetime
 import discord
 from discord.ext import commands
@@ -45,10 +46,13 @@ ydl_opts = {
 
 # Options for ffmpeg
 ffmpeg_options = {
+    'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5',
     'options': '-vn',
 }
 
 ydl = YoutubeDL(ydl_opts)
+
+song_queue = deque()
 
 # Searches for song
 async def search_yt(query):
@@ -59,8 +63,7 @@ async def search_yt(query):
     if "entries" in data:
         data = data["entries"][0]
 
-    url = data["url"]
-    return discord.FFmpegOpusAudio(url, **ffmpeg_options)
+    song_queue.append({'title': data["title"], 'url': data["url"]})
 
 # Event Listeners
 @bot.event
@@ -191,7 +194,7 @@ async def fact(ctx, arg: str=""):
         case _:
             await ctx.reply("Usage: ?fact or ?fact random")
             return
-    
+
     r = requests.get(f"https://uselessfacts.jsph.pl/api/v2/facts/{choice}")
     await ctx.send(r.json()['text'])
 
@@ -202,24 +205,37 @@ async def play(ctx, *, args):
     # Check if the user is in a voice channel
     if ctx.message.author.voice is None:
         await ctx.reply("You must be in a voice channel to do this")
-        return        
-    
+        return
+
     vc = ctx.message.author.voice.channel
 
     # Join the voice channel
     if ctx.voice_client:
         await ctx.voice_client.move_to(vc)
-    else: 
+    else:
         await vc.connect()
 
     # Search and play audio
     query = "ytsearch1:" + args
-    source = await search_yt(query)
-    ctx.voice_client.play(source)
+    await search_yt(query)
+    if not (ctx.voice_client.is_playing() or ctx.voice_client.is_paused()):
+        play_next_song(ctx)
+    else:
+        await ctx.send(f"Added {song_queue[-1]['title']} to queue in position {len(song_queue)}")
 
-    song_name = "Test"
-    await ctx.send(f"Now playing: {song_name}")
+# Plays next song in queue
+def play_next_song(ctx):
+    if not song_queue:
+        return
 
+    song = song_queue.popleft()
+    title = song['title']
+    url = song['url']
+
+    source = discord.FFmpegOpusAudio(url, **ffmpeg_options)
+    ctx.voice_client.play(source, after=lambda e: play_next_song(ctx))
+    asyncio.run_coroutine_threadsafe(ctx.send(f"Now playing: {title}"), bot.loop) 
+    
 # Pauses audio
 @bot.command()
 async def pause(ctx):
@@ -238,8 +254,11 @@ async def skip(ctx):
 # Displays music queue
 @bot.command()
 async def queue(ctx):
-    # TODO Implement
-    return
+    if not song_queue:
+        await ctx.send("The song queue is empty.")
+    else:
+        msg = [f"{song_queue.index(song) + 1}. {song['title']}" for song in song_queue]
+        await ctx.send('\n'.join(msg))
 
 # Leaves the voice channel
 @bot.command()
