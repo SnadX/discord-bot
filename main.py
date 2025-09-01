@@ -202,11 +202,6 @@ async def fact(ctx, arg: str=""):
 # Connect to voice channel and play music
 @bot.command()
 async def play(ctx, *, args):
-    # Check if the user is in a voice channel
-    if ctx.author.voice is None:
-        await ctx.reply("You must be in a voice channel to do this")
-        return
-
     vc = ctx.author.voice.channel
 
     # Join the voice channel
@@ -265,6 +260,17 @@ async def queue(ctx):
 async def leave(ctx):
     ctx.voice_client.stop()
     await ctx.voice_client.disconnect()
+
+@play.before_invoke
+@pause.before_invoke
+@unpause.before_invoke
+@skip.before_invoke
+@queue.before_invoke
+async def check_voice(ctx):
+    # Check if the user is in a voice channel
+    if ctx.author.voice is None:
+        await ctx.reply("You must be in a voice channel to do this")
+        raise commands.CommandError("Author not in voice channel")
 
 # Runs the bot
 bot.run(token, log_handler=handler, log_level=logging.DEBUG)
