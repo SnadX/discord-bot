@@ -139,7 +139,7 @@ async def echo(ctx, *, args):
 async def clear(ctx, num: int=10):
     try:
         await ctx.message.delete()
-        deleted =  await ctx.message.channel.purge(limit=num)
+        deleted =  await ctx.channel.purge(limit=num)
         await ctx.send(f"Deleted {len(deleted)} message(s)")
     except:
         await ctx.reply("Usage: ?clear <number of messages to delete>")
@@ -168,7 +168,7 @@ async def remindme(ctx, num: int, time: str, *, msg: str=""):
                 reminder = reminder + datetime.timedelta(days=num)
 
         title = msg if msg else "A reminder has been set for"
-        await ctx.message.author.send(f"{title}\n{discord.utils.format_dt(reminder)}")
+        await ctx.author.send(f"{title}\n{discord.utils.format_dt(reminder)}")
 
     except:
         await ctx.send('Usage: ?remindme <number> <minute(s)|hour(s)|day(s)> <[optional] message>')
@@ -203,11 +203,11 @@ async def fact(ctx, arg: str=""):
 @bot.command()
 async def play(ctx, *, args):
     # Check if the user is in a voice channel
-    if ctx.message.author.voice is None:
+    if ctx.author.voice is None:
         await ctx.reply("You must be in a voice channel to do this")
         return
 
-    vc = ctx.message.author.voice.channel
+    vc = ctx.author.voice.channel
 
     # Join the voice channel
     if ctx.voice_client:
