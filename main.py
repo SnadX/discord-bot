@@ -25,6 +25,15 @@ intents.reactions = True
 
 bot = commands.Bot(command_prefix='?', intents=intents)
 
+class MyHelp(commands.MinimalHelpCommand):
+    async def send_pages(self):
+        destination = self.get_destination()
+        for page in self.paginator.pages:
+            embed = discord.Embed(description=page)
+            await destination.send(embed=embed)
+
+bot.help_command = MyHelp()
+
 # Options for yt-dlp downloader
 ydl_opts = {
     'format': 'm4a/bestaudio/best',
@@ -74,7 +83,7 @@ async def on_ready():
 async def on_message(message):
     if message.author == bot.user:
         return
-    # TODO Implement some kind of automod
+
     await bot.process_commands(message)
 
 # Role reacts
@@ -120,23 +129,14 @@ async def on_raw_reaction_remove(payload):
     print(f"Removed role '{role.name}' from user '{user.name}'")
 
 # Commands
-# bot.remove_command('help')
-'''
-@bot.command()
-async def help(ctx):
-    # TODO send a message containing a formatted list of all bot commands
-    return
-'''
-
-# Repeats author's message
 @bot.command()
 async def echo(ctx, *, args):
+    """Repeats the user's message"""
     await ctx.send(args)
 
-# Purges N most recent messages 
-# TODO add a check for admin permissions - admin role in ctx.message.author.roles
 @bot.command()
 async def clear(ctx, num: int=10):
+    """Deletes a number of the most recent messages specified by the user"""
     try:
         await ctx.message.delete()
         deleted =  await ctx.channel.purge(limit=num)
@@ -144,9 +144,9 @@ async def clear(ctx, num: int=10):
     except:
         await ctx.reply("Usage: ?clear <number of messages to delete>")
 
-# Creates an embed that assigns users roles when they react
 @bot.command()
 async def roleassigner(ctx):
+    """Creates an embed that assigns users roles when they use specific reactions"""
     embed = discord.Embed(title="React to assign roles")
     embed.description = ("1️⃣ Test Role 1\n 2️⃣ Test Role 2\n 3️⃣ Test Role 3")
     msg = await ctx.send(embed=embed)
@@ -154,9 +154,9 @@ async def roleassigner(ctx):
     await msg.add_reaction("2️⃣")
     await msg.add_reaction("3️⃣")
 
-# Sends the user a reminder
 @bot.command()
 async def remindme(ctx, num: int, time: str, *, msg: str=""):
+    """DMs the user a reminder set after the specified amount of time"""
     try:
         reminder = discord.utils.utcnow()
         match time:
@@ -173,18 +173,18 @@ async def remindme(ctx, num: int, time: str, *, msg: str=""):
     except:
         await ctx.send('Usage: ?remindme <number> <minute(s)|hour(s)|day(s)> <[optional] message>')
 
-# Rolls NdN dice
 @bot.command()
 async def roll(ctx, dice: str):
+    """Rolls dice given in the format NdN"""
     try:
         rolls, sides = map(int, dice.lower().split('d'))
         await ctx.send(f"You rolled: {' '.join([str(random.randint(1, sides)) for i in range(rolls)])}")
     except:
         await ctx.reply("Usage: ?roll NdN")
 
-# Cool fact
 @bot.command()
 async def fact(ctx, arg: str=""):
+    """This is a cool fact"""
     choice = ""
     match arg:
         case "":
@@ -199,9 +199,9 @@ async def fact(ctx, arg: str=""):
     await ctx.send(r.json()['text'])
 
 # Music Commands
-# Connect to voice channel and play music
 @bot.command()
-async def play(ctx, *, args):
+async def play(ctx, *, args: str):
+    """Connects to the user's voice channel and plays music"""
     vc = ctx.author.voice.channel
 
     # Join the voice channel
@@ -218,8 +218,8 @@ async def play(ctx, *, args):
     else:
         await ctx.send(f"Added {song_queue[-1]['title']} to queue in position {len(song_queue)}")
 
-# Plays next song in queue
 def play_next_song(ctx):
+    """Plays next song in queue"""
     if not song_queue:
         return
 
@@ -231,33 +231,33 @@ def play_next_song(ctx):
     ctx.voice_client.play(source, after=lambda e: play_next_song(ctx))
     asyncio.run_coroutine_threadsafe(ctx.send(f"Now playing: {title}"), bot.loop) 
     
-# Pauses audio
 @bot.command()
 async def pause(ctx):
+    """Pauses audio"""
     ctx.voice_client.pause()
 
-# Unpauses audio
 @bot.command()
 async def unpause(ctx):
+    """Unpauses audio"""
     ctx.voice_client.resume()
 
-# Skips current track
 @bot.command()
 async def skip(ctx):
+    """Skips current track"""
     ctx.voice_client.stop()
 
-# Displays music queue
 @bot.command()
 async def queue(ctx):
+    """Displays the music queue"""
     if not song_queue:
         await ctx.send("The song queue is empty.")
     else:
         msg = [f"{song_queue.index(song) + 1}. {song['title']}" for song in song_queue]
         await ctx.send('\n'.join(msg))
 
-# Leaves the voice channel
 @bot.command()
 async def leave(ctx):
+    """Leaves the voice channel"""
     ctx.voice_client.stop()
     await ctx.voice_client.disconnect()
 
@@ -271,6 +271,14 @@ async def check_voice(ctx):
     if ctx.author.voice is None:
         await ctx.reply("You must be in a voice channel to do this")
         raise commands.CommandError("Author not in voice channel")
+
+@clear.before_invoke
+@roleassigner.before_invoke
+async def check_admin(ctx):
+    # Check if the user is an admin
+    if not ctx.author.guild_permissions.administrator:
+        await ctx.reply("You do not have permission to use this command")
+        raise commands.CommandError("Author is not an administrator")
 
 # Runs the bot
 bot.run(token, log_handler=handler, log_level=logging.DEBUG)
