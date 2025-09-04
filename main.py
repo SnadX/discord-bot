@@ -167,8 +167,10 @@ async def remindme(ctx, num: int, time: str, *, msg: str=""):
             case 'day' | 'days':
                 reminder = reminder + datetime.timedelta(days=num)
 
-        title = msg if msg else "A reminder has been set for"
-        await ctx.author.send(f"{title}\n{discord.utils.format_dt(reminder)}")
+        title = msg if msg else "Reminder"
+        embed = discord.Embed(title=title)
+        embed.description = discord.utils.format_dt(reminder)
+        await ctx.author.send(embed=embed)
 
     except:
         await ctx.send('Usage: ?remindme <number> <minute(s)|hour(s)|day(s)> <[optional] message>')
@@ -178,7 +180,9 @@ async def roll(ctx, dice: str):
     """Rolls dice given in the format NdN"""
     try:
         rolls, sides = map(int, dice.lower().split('d'))
-        await ctx.send(f"You rolled: {' '.join([str(random.randint(1, sides)) for i in range(rolls)])}")
+        embed = discord.Embed(title="Results")
+        embed.description = f"{', '.join([str(random.randint(1, sides)) for i in range(rolls)])}"
+        await ctx.send(embed=embed)
     except:
         await ctx.reply("Usage: ?roll NdN")
 
@@ -186,17 +190,22 @@ async def roll(ctx, dice: str):
 async def fact(ctx, arg: str=""):
     """This is a cool fact"""
     choice = ""
+    title = ""
     match arg:
         case "":
             choice = "today"
+            title = "Fact of the day"
         case "random":
             choice = "random"
+            title = "Random Fact"
         case _:
             await ctx.reply("Usage: ?fact or ?fact random")
             return
 
     r = requests.get(f"https://uselessfacts.jsph.pl/api/v2/facts/{choice}")
-    await ctx.send(r.json()['text'])
+    embed = discord.Embed(title=title)
+    embed.description = r.json()['text']
+    await ctx.send(embed=embed)
 
 # Music Commands
 @bot.command()
@@ -216,7 +225,9 @@ async def play(ctx, *, args: str):
     if not (ctx.voice_client.is_playing() or ctx.voice_client.is_paused()):
         play_next_song(ctx)
     else:
-        await ctx.send(f"Added {song_queue[-1]['title']} to queue in position {len(song_queue)}")
+        embed = discord.Embed(title="Queued Song")
+        embed.description = f"Added {song_queue[-1]['title']} to queue in position {len(song_queue)}"
+        await ctx.send(embed=embed)
 
 def play_next_song(ctx):
     """Plays next song in queue"""
@@ -229,7 +240,10 @@ def play_next_song(ctx):
 
     source = discord.FFmpegOpusAudio(url, **ffmpeg_options)
     ctx.voice_client.play(source, after=lambda e: play_next_song(ctx))
-    asyncio.run_coroutine_threadsafe(ctx.send(f"Now playing: {title}"), bot.loop) 
+
+    embed = discord.Embed(title="Now Playing")
+    embed.description = title
+    asyncio.run_coroutine_threadsafe(ctx.send(embed=embed), bot.loop) 
     
 @bot.command()
 async def pause(ctx):
@@ -252,8 +266,9 @@ async def queue(ctx):
     if not song_queue:
         await ctx.send("The song queue is empty.")
     else:
-        msg = [f"{song_queue.index(song) + 1}. {song['title']}" for song in song_queue]
-        await ctx.send('\n'.join(msg))
+        embed = discord.Embed(title="Song Queue")
+        embed.description = '\n'.join([f"{song_queue.index(song) + 1}. {song['title']}" for song in song_queue])
+        await ctx.send(embed=embed)
 
 @bot.command()
 async def leave(ctx):
