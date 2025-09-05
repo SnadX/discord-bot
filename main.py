@@ -1,16 +1,10 @@
 # main.py
 # imports
-import asyncio
-from collections import deque
-import datetime
 import discord
 from discord.ext import commands
 from dotenv import load_dotenv
 import logging
 import os
-import random
-import requests
-from yt_dlp import YoutubeDL
 
 # env, logging and intents setup
 load_dotenv()
@@ -25,6 +19,7 @@ intents.reactions = True
 
 bot = commands.Bot(command_prefix='?', intents=intents)
 
+# Modified help command
 class MyHelp(commands.MinimalHelpCommand):
     async def send_pages(self):
         destination = self.get_destination()
@@ -34,49 +29,16 @@ class MyHelp(commands.MinimalHelpCommand):
 
 bot.help_command = MyHelp()
 
-# Options for yt-dlp downloader
-ydl_opts = {
-    'format': 'm4a/bestaudio/best',
-    'outtmpl': '%(extractor)s-%(id)s-%(title)s.%(ext)s',
-    'restrictfilenames': True,
-    'noplaylist': True,
-    'nocheckcertificate': True,
-    'ignoreerrors': False,
-    'logtostderr': False,
-    'quiet': True,
-    'no_warnings': True,
-    'source_address': '0.0.0.0',
-    'postprocessors':
-    [{
-        'key': 'FFmpegExtractAudio',
-        'preferredcodec': 'm4a',
-    }]
-}
-
-# Options for ffmpeg
-ffmpeg_options = {
-    'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5',
-    'options': '-vn',
-}
-
-ydl = YoutubeDL(ydl_opts)
-
-song_queue = deque()
-
-# Searches for song
-async def search_yt(query):
-    loop = asyncio.get_event_loop()
-    data = await loop.run_in_executor(None, lambda: ydl.extract_info(query, download=False))
-
-    # Takes first item from playlist
-    if "entries" in data:
-        data = data["entries"][0]
-
-    song_queue.append({'title': data["title"], 'url': data["url"]})
+# Loads cogs from cogs directory
+async def load_cogs():
+    for file in os.listdir('./cogs'):
+        if file.endswith('.py'):
+            await bot.load_extension(f"cogs.{file[:-3]}")
 
 # Event Listeners
 @bot.event
 async def on_ready():
+    await load_cogs()
     print(f"{bot.user.name} has logged in")
 
 @bot.event
@@ -85,215 +47,6 @@ async def on_message(message):
         return
 
     await bot.process_commands(message)
-
-# Role reacts
-# Adds a role to the user depending on the reaction to the message
-# Can additionally check payload.message_id or payload.channel_id to ensure it only works in a specific message/channel
-@bot.event
-async def on_raw_reaction_add(payload):
-    guild = bot.get_guild(payload.guild_id)
-    user = discord.utils.get(guild.members, id=payload.user_id)
-    if user.bot: return
-    # if payload.message_id != <Message ID here>: return
-    match str(payload.emoji):
-        case "1️⃣":
-            role =  discord.utils.get(guild.roles, name="Test Role 1")
-        case "2️⃣":
-            role =  discord.utils.get(guild.roles, name="Test Role 2")
-        case "3️⃣":
-            role =  discord.utils.get(guild.roles, name="Test Role 3")
-        case _:
-            return
-
-    await user.add_roles(role)
-    print(f"Added role '{role.name}' to user '{user.name}'")
-
-# Removes a role from the user depending on the reaction to the message
-@bot.event
-async def on_raw_reaction_remove(payload):
-    guild = bot.get_guild(payload.guild_id)
-    user = discord.utils.get(guild.members, id=payload.user_id)
-    if user.bot: return
-    # if payload.message_id != <Message ID here>: return
-    match str(payload.emoji):
-        case "1️⃣":
-            role =  discord.utils.get(guild.roles, name="Test Role 1")
-        case "2️⃣":
-            role =  discord.utils.get(guild.roles, name="Test Role 2")
-        case "3️⃣":
-            role =  discord.utils.get(guild.roles, name="Test Role 3")
-        case _:
-            return
-
-    await user.remove_roles(role)
-    print(f"Removed role '{role.name}' from user '{user.name}'")
-
-# Commands
-@bot.command()
-async def echo(ctx, *, args):
-    """Repeats the user's message"""
-    await ctx.send(args)
-
-@bot.command()
-async def clear(ctx, num: int=10):
-    """Deletes a number of the most recent messages specified by the user"""
-    try:
-        await ctx.message.delete()
-        deleted =  await ctx.channel.purge(limit=num)
-        await ctx.send(f"Deleted {len(deleted)} message(s)")
-    except:
-        await ctx.reply("Usage: ?clear <number of messages to delete>")
-
-@bot.command()
-async def roleassigner(ctx):
-    """Creates an embed that assigns users roles when they use specific reactions"""
-    embed = discord.Embed(title="React to assign roles")
-    embed.description = ("1️⃣ Test Role 1\n 2️⃣ Test Role 2\n 3️⃣ Test Role 3")
-    msg = await ctx.send(embed=embed)
-    await msg.add_reaction("1️⃣")
-    await msg.add_reaction("2️⃣")
-    await msg.add_reaction("3️⃣")
-
-@bot.command()
-async def remindme(ctx, num: int, time: str, *, msg: str=""):
-    """DMs the user a reminder set after the specified amount of time"""
-    try:
-        reminder = discord.utils.utcnow()
-        match time:
-            case 'minute' | 'minutes':
-                reminder = reminder + datetime.timedelta(minutes=num)
-            case 'hour' | 'hours':
-                reminder = reminder + datetime.timedelta(hours=num)
-            case 'day' | 'days':
-                reminder = reminder + datetime.timedelta(days=num)
-
-        title = msg if msg else "Reminder"
-        embed = discord.Embed(title=title)
-        embed.description = discord.utils.format_dt(reminder)
-        await ctx.author.send(embed=embed)
-
-    except:
-        await ctx.send('Usage: ?remindme <number> <minute(s)|hour(s)|day(s)> <[optional] message>')
-
-@bot.command()
-async def roll(ctx, dice: str):
-    """Rolls dice given in the format NdN"""
-    try:
-        rolls, sides = map(int, dice.lower().split('d'))
-        embed = discord.Embed(title="Results")
-        embed.description = f"{', '.join([str(random.randint(1, sides)) for i in range(rolls)])}"
-        await ctx.send(embed=embed)
-    except:
-        await ctx.reply("Usage: ?roll NdN")
-
-@bot.command()
-async def fact(ctx, arg: str=""):
-    """This is a cool fact"""
-    choice = ""
-    title = ""
-    match arg:
-        case "":
-            choice = "today"
-            title = "Fact of the day"
-        case "random":
-            choice = "random"
-            title = "Random Fact"
-        case _:
-            await ctx.reply("Usage: ?fact or ?fact random")
-            return
-
-    r = requests.get(f"https://uselessfacts.jsph.pl/api/v2/facts/{choice}")
-    embed = discord.Embed(title=title)
-    embed.description = r.json()['text']
-    await ctx.send(embed=embed)
-
-# Music Commands
-@bot.command()
-async def play(ctx, *, args: str):
-    """Connects to the user's voice channel and plays music"""
-    vc = ctx.author.voice.channel
-
-    # Join the voice channel
-    if ctx.voice_client:
-        await ctx.voice_client.move_to(vc)
-    else:
-        await vc.connect()
-
-    # Search and play audio
-    query = "ytsearch1:" + args
-    await search_yt(query)
-    if not (ctx.voice_client.is_playing() or ctx.voice_client.is_paused()):
-        play_next_song(ctx)
-    else:
-        embed = discord.Embed(title="Queued Song")
-        embed.description = f"Added {song_queue[-1]['title']} to queue in position {len(song_queue)}"
-        await ctx.send(embed=embed)
-
-def play_next_song(ctx):
-    """Plays next song in queue"""
-    if not song_queue:
-        return
-
-    song = song_queue.popleft()
-    title = song['title']
-    url = song['url']
-
-    source = discord.FFmpegOpusAudio(url, **ffmpeg_options)
-    ctx.voice_client.play(source, after=lambda e: play_next_song(ctx))
-
-    embed = discord.Embed(title="Now Playing")
-    embed.description = title
-    asyncio.run_coroutine_threadsafe(ctx.send(embed=embed), bot.loop) 
-    
-@bot.command()
-async def pause(ctx):
-    """Pauses audio"""
-    ctx.voice_client.pause()
-
-@bot.command()
-async def unpause(ctx):
-    """Unpauses audio"""
-    ctx.voice_client.resume()
-
-@bot.command()
-async def skip(ctx):
-    """Skips current track"""
-    ctx.voice_client.stop()
-
-@bot.command()
-async def queue(ctx):
-    """Displays the music queue"""
-    if not song_queue:
-        await ctx.send("The song queue is empty.")
-    else:
-        embed = discord.Embed(title="Song Queue")
-        embed.description = '\n'.join([f"{song_queue.index(song) + 1}. {song['title']}" for song in song_queue])
-        await ctx.send(embed=embed)
-
-@bot.command()
-async def leave(ctx):
-    """Leaves the voice channel"""
-    ctx.voice_client.stop()
-    await ctx.voice_client.disconnect()
-
-@play.before_invoke
-@pause.before_invoke
-@unpause.before_invoke
-@skip.before_invoke
-@queue.before_invoke
-async def check_voice(ctx):
-    # Check if the user is in a voice channel
-    if ctx.author.voice is None:
-        await ctx.reply("You must be in a voice channel to do this")
-        raise commands.CommandError("Author not in voice channel")
-
-@clear.before_invoke
-@roleassigner.before_invoke
-async def check_admin(ctx):
-    # Check if the user is an admin
-    if not ctx.author.guild_permissions.administrator:
-        await ctx.reply("You do not have permission to use this command")
-        raise commands.CommandError("Author is not an administrator")
 
 # Runs the bot
 bot.run(token, log_handler=handler, log_level=logging.DEBUG)
