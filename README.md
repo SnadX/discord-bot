@@ -21,7 +21,7 @@ the PATH variables.
 Before beginning, make sure to create a bot account, which can be done by following
 [this guide](https://discordpy.readthedocs.io/en/stable/discord.html).
 
-Rename the `env.example` file to `env` and replace the value in the `DISCORD_TOKEN` field with the
+Rename the `.env.example` file to `.env` and replace the value in the `DISCORD_TOKEN` field with the
 token of your discord bot.
 This token is created upon creation of your bot, so if you forgot or lost your token, go to the
 [Discord Developer Portal](https://discord.com/developers/applications), find your bot and click
